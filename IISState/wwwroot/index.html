@@ -1,0 +1,319 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>监 控 中 心</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            background-color: #007bff;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .monitor-card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .monitor-card h2 {
+            margin: 0;
+            font-size: 1.5em;
+        }
+        .monitor-card .status {
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .monitor-card .status.operational {
+            color: #28a745;
+        }
+        .monitor-card .status.degraded {
+            color: #ffc107;
+        }
+        .monitor-card .status.down {
+            color: #dc3545;
+        }
+        .monitor-card .uptime {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #666;
+        }
+        .monitor-card .status-bars {
+            margin-top: 10px;
+            display: flex;
+            gap: 2px;
+            height: 20px;
+        }
+        .monitor-card .status-bars .bar {
+            flex: 1;
+            background-color: #e9ecef;
+            border-radius: 2px;
+        }
+        .monitor-card .status-bars .bar.success {
+            background-color: #28a745;
+        }
+        .monitor-card .status-bars .bar.failure {
+            background-color: #dc3545;
+        }
+        .form-container {
+            margin-bottom: 20px;
+        }
+        .form-container input, .form-container select {
+            padding: 8px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .form-container button {
+            padding: 8px 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .form-container button:hover {
+            background-color: #0056b3;
+        }
+        .monitor-card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .monitor-card h2 {
+            margin: 0;
+            font-size: 1.6em;
+        }
+        .monitor-card .status {
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .monitor-card .status.operational {
+            color: #28a745;
+        }
+        .monitor-card .status.down {
+            color: #dc3545;
+        }
+        .monitor-card .uptime {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #666;
+        }
+        .monitor-card .status-bars {
+            margin-top: 10px;
+            display: flex;
+            gap: 2px;
+            height: 20px;
+        }
+        .monitor-card .status-bars .bar {
+            flex: 1;
+            background-color: #e9ecef; /* 默认灰色 */
+            border-radius: 2px;
+        }
+        .monitor-card .status-bars .bar.success {
+            background-color: #28a745; /* 成功为绿色 */
+        }
+        .monitor-card .status-bars .bar.failure {
+            background-color: #dc3545; /* 失败为红色 */
+        }
+        .delete-button {
+            margin-top: 10px;
+            padding: 8px 16px;
+            background-color: #dc3545; /* 红色 */
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .delete-button:hover {
+            background-color: #c82333; /* 深红色 */
+        }
+        .type-label {
+            display: inline-block;
+            padding: 1px 4px;
+            background-color: #007bff;
+            color: white;
+            font-size: 0.5em;
+            border-radius: 4px;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>监控中心</h1>
+</header>
+<div class="container">
+    <!-- 添加监控项的表单 -->
+    <div class="form-container">
+        <input type="text" id="name" placeholder="名称" required>
+        <input type="text" id="target" placeholder="目标地址/接口/数据库" required>
+        <select id="type">
+            <option value="IP">IP地址</option>
+            <option value="API">接口</option>
+            <option value="SQL">数据库</option>
+        </select>
+        <button onclick="addMonitorItem()">新增</button>
+    </div>
+
+    <!-- 监控项卡片将动态插入到这里 -->
+    <div id="monitor-items-container"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.min.js"></script>
+<script>
+    // 首次加载数据
+    async function loadInitialData() {
+        try {
+            const response = await fetch('/api/monitor');
+            const items = await response.json();
+            renderMonitorItems(items);
+        } catch (error) {
+            console.error('数据加载失败:', error);
+        }
+    }
+
+    // 渲染监控项
+    function renderMonitorItems(items) {
+        const container = document.getElementById('monitor-items-container');
+        if (!container) {
+            console.error('控件不存在: monitor-items-container');
+            return;
+        }
+
+        container.innerHTML = ''; // 清空现有内容
+
+        items.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'monitor-card';
+
+            const statusClass = item.isAvailable ? 'operational' : 'down';
+
+            // 生成 90 个小竖条
+            const bars = Array.from({ length: 90 }, (_, index) => {
+                const entry = item.history[index]; // 获取对应位置的结果
+                const barClass = entry?.isSuccess === true ? 'success' : entry?.isSuccess === false ? 'failure' : '';
+                const timestamp = entry ? new Date(entry.timestamp).toLocaleString() : 'No data';
+                const tooltip = entry?.errorMessage ? `${timestamp}\nError: ${entry.errorMessage}` : timestamp;
+                return `<div class="bar ${barClass}" title="${tooltip}"></div>`;
+            }).join('');
+
+            // 添加数据类型标签
+            const typeLabel = `<span class="type-label">${item.type}</span>`;
+
+            card.innerHTML = `
+      <h2>${item.name} ${typeLabel}</h2>
+      <div class="status ${statusClass}">${item.isAvailable ? '正常' : '停用'}</div>
+      <div class="uptime">${item.uptime}% 过去90次的正常运行率</div>
+      <div class="status-bars">${bars}</div>
+      <button class="delete-button" onclick="handleDelete(${item.id})">删除</button>
+    `;
+
+            container.appendChild(card);
+        });
+    }
+
+    async function handleDelete(id) {
+        const itemId = id; // 获取要删除的项的 ID
+
+        if (!itemId) {
+            console.error('未找到要删除的项的 ID');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/monitor/delete/${itemId}`, {
+                method: 'POST', // 使用 POST 方法
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                // 删除成功后刷新数据
+                loadInitialData();
+            } else {
+                alert('删除失败，请稍后重试。');
+            }
+        } catch (error) {
+            console.error('删除时发生错误:', error);
+            alert('删除时发生错误，请检查控制台。');
+        }
+    }
+    // 添加监控项
+    async function addMonitorItem() {
+        const name = document.getElementById('name').value;
+        const target = document.getElementById('target').value;
+        const type = document.getElementById('type').value;
+
+        if (!name || !target) {
+            alert('Please fill in both fields.');
+            return;
+        }
+
+        const newItem = {
+            name: name,
+            target: target,
+            type: type
+        };
+
+        try {
+            const response = await fetch('/api/monitor', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(newItem)
+            });
+
+            if (response.ok) {
+                // 添加成功后刷新数据
+                loadInitialData();
+                // 清空表单
+                document.getElementById('name').value = '';
+                document.getElementById('target').value = '';
+            } else {
+                alert('Failed to add monitor item.');
+            }
+        } catch (error) {
+            console.error('Error adding monitor item:', error);
+            alert('An error occurred while adding the monitor item.');
+        }
+    }
+
+    // 页面加载时获取初始数据
+    loadInitialData();
+
+    // SignalR 连接和前端逻辑
+    const connection = new signalR.HubConnectionBuilder()
+        .withUrl("/monitorHub")
+        .withAutomaticReconnect([0, 2000, 5000, 10000, 30000]) // 重连间隔
+        .build();
+
+    connection.on("ReceiveMonitorUpdate", function (items) {
+        renderMonitorItems(items); // 动态更新监控项
+    });
+
+    connection.start()
+        .then(() => console.log('SignalR 连接成功'))
+        .catch(err => console.error('SignalR 连接失败:', err));
+</script>
+</body>
+</html>
